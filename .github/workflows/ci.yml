@@ -1,0 +1,30 @@
+# Pipeline CI : vérifie le code à chaque push et chaque pull request.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    name: Tests Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+        working-directory: ./api
+      - name: Lancer les tests
+        run: python -m pytest tests/ -v
+        working-directory: ./api
+
+  docker:
+    name: Build Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construire l'image API
+        run: docker build ./api
