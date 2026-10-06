@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<!-- Page de démonstration : le classement en direct via WebSocket.
+     Ouvrez-la dans deux onglets, postez un score, les deux se mettent
+     à jour instantanément — sans recharger la page. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scoreboard Live 🏆</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { text-align: center; }
+  #status { text-align: center; color: #666; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { padding: 0.6rem; border-bottom: 1px solid #ddd; text-align: left; }
+  th { background: #f5f5f5; }
+  tbody tr:first-child td { font-weight: bold; } /* le leader en gras */
+  .flash { animation: flash 1s; } /* petit flash jaune à chaque mise à jour */
+  @keyframes flash { from { background: #fff3cd; } to { background: transparent; } }
+  .hint { text-align: center; color: #999; font-size: 0.85rem; margin-top: 1rem; }
+</style>
+</head>
+<body>
+<h1>🏆 Scoreboard Live</h1>
+<p id="status">Connexion…</p>
+<table>
+  <thead><tr><th>#</th><th>Joueur</th><th>Points</th><th>Parties</th></tr></thead>
+  <tbody id="board"><tr><td colspan="4">En attente des données…</td></tr></tbody>
+</table>
+<p class="hint">Le classement se met à jour tout seul à chaque nouveau score.</p>
+
+<script>
+// Petite fonction anti-XSS : on échappe le HTML des noms de joueurs
+// avant de les injecter dans la page (un nom comme "<img onerror=...>"
+// ne doit jamais pouvoir exécuter du code).
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// 1. On ouvre UNE connexion WebSocket vers l'API (même hôte que la page,
+//    donc ça marche quel que soit le port ou la machine).
+const ws = new WebSocket("ws://" + location.host + "/ws/leaderboard");
+const statusEl = document.getElementById("status");
+const boardEl = document.getElementById("board");
+
+// 2. Connexion établie : on l'affiche
+ws.onopen = () => { statusEl.textContent = "Connecté 🟢 — en direct"; };
+
+// 3. Message reçu du serveur : on reconstruit le tableau.
+//    Le serveur envoie { type: "leaderboard", entries: [...] } à chaque
+//    nouveau score — pas besoin de recharger la page, ni même de
+//    redemander quoi que ce soit : c'est du "push".
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  if (msg.type !== "leaderboard") return;
+  boardEl.innerHTML = msg.entries.map((e, i) => `
+    <tr class="flash">
+      <td>${i + 1}</td>
+      <td>${esc(e.name)}</td>
+      <td>${e.total_points}</td>
+      <td>${e.games}</td>
+    </tr>`).join("");
+};
+
+// 4. Connexion perdue : on l'affiche (en prod, on tenterait de reconnecter ici)
+ws.onclose = () => { statusEl.textContent = "Déconnecté 🔴"; };
+ws.onerror = () => { statusEl.textContent = "Erreur de connexion 🔴"; };
+</script>
+</body>
+</html>
